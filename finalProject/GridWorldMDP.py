@@ -32,17 +32,19 @@ class GridWorldMDP(object):
 
     """
 
-    def __init__(self, noise=0.2, gamma=0.9):
+    def __init__(self, noise=0.2, gamma=0.9, K=3, sanity=False):
         """Initialize the class
 
             Args
             ----------
             noise : The likelihood that the action is incorrect
             gamma : The discount factor
+            K: number of objectives to optimize
 
         """
 
         self.gamma = gamma
+        self.K = K
 
         # The actions
         self.A = ['N', 'E', 'S', 'W', "STAY"]
@@ -52,14 +54,16 @@ class GridWorldMDP(object):
         self.numstates = self.width*self.height + 1  # +1 for the extra 
                                                      # absorbing state
         # self.absorbing_states = [0, 1, 2, 3, 4, 12, 14, 15]
-        self.absorbing_states = [12, 14, 15]
+        states = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24]
+        self.absorbing_states = np.random.choice(states, self.K)
+        self.sanity = sanity
+        if self.sanity:
+            self.absorbing_states = [12, 14, 15]
         obstacles = [11, 13, 16]
-
 
 
         # The transition matrix
         self.T = np.zeros([self.numstates, self.numstates, 5])
-
 
 
         for i in self.absorbing_states:
@@ -189,6 +193,7 @@ class GridWorldMDP(object):
 
         # The rewards
         # self.R = np.zeros([self.numstates, self.numstates, 4])  # Avoid obsorbing states
+        self.R = np.zeros([self.K, self.numstates, self.numstates, 5])
         self.R1 = np.zeros([self.numstates, self.numstates, 5])  # Green item
         self.R2 = np.zeros([self.numstates, self.numstates, 5])  # Red item
         self.R3 = np.zeros([self.numstates, self.numstates, 5])  # Blue item
@@ -201,14 +206,24 @@ class GridWorldMDP(object):
         #         self.R2[i, 25, a] = -10
         #         self.R3[i, 25, a] = -10
 
+        # for a in range(0, 4):  # STAY action will always recieve reward 0
+        #     # self.R[12, 25, a] = 1.0
+        #     # self.R[14, 25, a] = 10.0
+        #     self.R1[12, 25, a] = 1.0  # Green
+        #     self.R2[14, 25, a] = 1.0  # Red
+        #     self.R3[15, 25, a] = 1.0  # Blue
+
         for a in range(0, 4):  # STAY action will always recieve reward 0
             # self.R[12, 25, a] = 1.0
             # self.R[14, 25, a] = 10.0
+            for k in range(self.K):
+                self.R[k, self.absorbing_states[k], 25, a] = 1.0
+
             self.R1[12, 25, a] = 1.0  # Green
             self.R2[14, 25, a] = 1.0  # Red
             self.R3[15, 25, a] = 1.0  # Blue
 
-    def drawWorld(self, V, Pi, fig_path = "", savefig = False):
+    def drawWorld(self, V, Pi, fig_path = "", savefig = False, p=0, setting="MORL"):
         """Visualizes the MDP
 
             Args
@@ -381,7 +396,8 @@ class GridWorldMDP(object):
             # Pi[k] == 4: Just stay at where we are
 
         if savefig:
-            pyplot.savefig(fig_path)
+            ax.set_title(f"Preference is {p}, Setting is {setting}")
+            pyplot.savefig(fig_path, dpi=300)
         else:
             pyplot.show()
 
@@ -409,10 +425,13 @@ class GridWorldMDP(object):
                     for next_state in range(self.numstates):
                         if k == 0:  # Optimize yellow item
                             action_value[action] += self.T[state, next_state, action] * (self.R1[state, next_state, action] + self.gamma * V[next_state])
+                            # action_value[action] += self.T[state, next_state, action] * (self.R[0, state, next_state, action] + self.gamma * V[next_state])
                         elif k == 1:  # Optimize green item
                             action_value[action] += self.T[state, next_state, action] * (self.R2[state, next_state, action] + self.gamma * V[next_state])
+                            # action_value[action] += self.T[state, next_state, action] * (self.R[1, state, next_state, action] + self.gamma * V[next_state])
                         else:  # Optimize blue item
                             action_value[action] += self.T[state, next_state, action] * (self.R3[state, next_state, action] + self.gamma * V[next_state])
+                            # action_value[action] += self.T[state, next_state, action] * (self.R[2, state, next_state, action] + self.gamma * V[next_state])
 
                 best_action = np.argmax(action_value)
                 V[state] = action_value[best_action]
@@ -439,26 +458,31 @@ class GridWorldMDP(object):
         """
 
         # Your function should populate the following arrays
-        V1 = np.zeros([self.numstates, 3])  # Value function, green
+        V1 = np.zeros([self.numstates, self.K])  # Value function, green
         Pi = np.zeros([self.numstates])  # Policy where Pi[i] is 0 (N), 1 (E), 2 (S), 3(W)
 
         n = 0  # Keep track of the number of iterations
+        MAX_ITER = 1000
 
         # INSERT YOUR CODE HERE (DON'T FORGET TO INCREMENT THE NUMBER OF ITERATIONS)
 
         delta1 = float("inf")
-        while delta1 > epsilon:
+        while delta1 > epsilon and n < MAX_ITER:
             n = n+1
             delta1 = 0
             for state in range(self.numstates):
                 old_value1 = V1[state, :].copy()
-                action_value1 = np.zeros([5, 3])
+                action_value1 = np.zeros([5, self.K])
 
                 for action in range(5):
                     for next_state in range(self.numstates):
-                        action_value1[action, 0] += self.T[state, next_state, action] * (self.R1[state, next_state, action] + self.gamma * V1[next_state, 0])
-                        action_value1[action, 1] += self.T[state, next_state, action] * (self.R2[state, next_state, action] + self.gamma * V1[next_state, 1])
-                        action_value1[action, 2] += self.T[state, next_state, action] * (self.R3[state, next_state, action] + self.gamma * V1[next_state, 2])
+                        if self.sanity:
+                            action_value1[action, 0] += self.T[state, next_state, action] * (self.R1[state, next_state, action] + self.gamma * V1[next_state, 0])
+                            action_value1[action, 1] += self.T[state, next_state, action] * (self.R2[state, next_state, action] + self.gamma * V1[next_state, 1])
+                            action_value1[action, 2] += self.T[state, next_state, action] * (self.R3[state, next_state, action] + self.gamma * V1[next_state, 2])
+                        else:
+                            for k in range(self.K):
+                                action_value1[action, k] += self.T[state, next_state, action] * (self.R[k, state, next_state, action] + self.gamma * V1[next_state, k])
 
                 best_action1 = np.argmax(action_value1 @ pref)
                 V1[state, :] = action_value1[best_action1, :]
@@ -478,21 +502,24 @@ class GridWorldMDP(object):
 
         delta1 = float("inf")
         n = 0
-        V1 = np.zeros([self.numstates, 3])
+        MAX_ITER = 1000
+        V1 = np.zeros([self.numstates, self.K])
         #action_value1 = np.zeros([5, 3])
-        while delta1 > epsilon:
+        while delta1 > epsilon and n < MAX_ITER:
             delta1 = 0
             n = n+1
             for state in range(self.numstates):
                 old_value1 = V1[state, :].copy()
-                action_value1 = np.zeros([5, 3])
+                action_value1 = np.zeros([5, self.K])
 
                 for action in range(5):
                     for next_state in range(self.numstates):
-                        action_value1[action, 0] += self.T[state, next_state, action] * (self.R1[state, next_state, action] + self.gamma * V1[next_state, 0])
-                        #print(action_value1[action, 0])
-                        action_value1[action, 1] += self.T[state, next_state, action] * (self.R2[state, next_state, action] + self.gamma * V1[next_state, 1])
-                        action_value1[action, 2] += self.T[state, next_state, action] * (self.R3[state, next_state, action] + self.gamma * V1[next_state, 2])
+                        for k in range(self.K):
+                            action_value1[action, k] += self.T[state, next_state, action] * (self.R[k, state, next_state, action] + self.gamma * V1[next_state, k])
+                        # action_value1[action, 0] += self.T[state, next_state, action] * (self.R1[state, next_state, action] + self.gamma * V1[next_state, 0])
+                        # #print(action_value1[action, 0])
+                        # action_value1[action, 1] += self.T[state, next_state, action] * (self.R2[state, next_state, action] + self.gamma * V1[next_state, 1])
+                        # action_value1[action, 2] += self.T[state, next_state, action] * (self.R3[state, next_state, action] + self.gamma * V1[next_state, 2])
 
                 V1[state, :] = pi[state, :].transpose()@action_value1  # should be a [3, 1] vector
                 delta1 = max(delta1, np.max(V1[state, :]-old_value1))
