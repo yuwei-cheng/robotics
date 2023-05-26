@@ -20,6 +20,22 @@ if __name__ == "__main__":
     with open('./performance_gap_list.pkl', 'rb') as f:
         performance_gap_list = pickle.load(f)
 
+    # Create Table 2 in the Final Report
+    print(true_preference_list[0])
+    print(est_preference_list[0])
+
+    # Find the index of maximum relative performance gap
+    idx_list = []
+    for k in range(3, 11, 1):
+        idx_list.append(np.argmax(performance_gap_list[k-3]))
+
+    # Find the associated number of sign flip
+    i = 0
+    for idx in idx_list:
+        print(np.sum(true_preference_list[i][idx] * est_preference_list[i][idx] > 0))
+        i = i+1
+
+    # Create Table 3 in Final Report
     sign_align_table = np.zeros([8, 3])
     for k in range(3, 11, 1):
         counts = np.apply_along_axis(lambda x: np.sum(x>0), 1, true_preference_list[k-3]*est_preference_list[k-3])
@@ -45,7 +61,7 @@ if __name__ == "__main__":
         fig.colorbar(im, cax=cbar_ax)
         plt.savefig("./preferece_compare.png", dpi=300)
         plt.show()
-    
+
     # Number of queries
     plt.plot([k for k in range(3, 11, 1)], list(map(np.average, num_query_list)),
              "k--", label="Experiments")
@@ -59,20 +75,20 @@ if __name__ == "__main__":
     plt.legend()
     plt.savefig("./number_of_queries.png", dpi=300)
     plt.show()
-    
+
     # Delta
     plt.plot([k for k in range(3, 11, 1)], list(map(np.average, delta_list)),
              "k--", label="Experiments")
     plt.fill_between([k for k in range(3, 11, 1)],
                      list(map(np.min, delta_list)),
                      list(map(np.max, delta_list)))
-    plt.ylim([0.0, 0.35])
+    plt.ylim([0.0, 0.20])
     plt.xlabel("K")
     plt.ylabel(r"$\nu^{*} - \omega^{*T}V^{\hat{\pi}}$")
     plt.legend()
     plt.savefig("./delta.png", dpi=300)
     plt.show()
-    
+
     #Relative Performance
     plt.plot([k for k in range(3, 11, 1)], list(map(np.average, performance_gap_list)),
              "k--", label="Experiments")
@@ -81,22 +97,23 @@ if __name__ == "__main__":
                      list(map(np.max, performance_gap_list)))
     plt.xlabel("K")
     plt.ylabel(r"$\frac{\nu^{*} - \omega^{*T}V^{\hat{\pi}}}{\nu^{*}}$")
+    plt.ylim([0.0, 0.60])
     plt.legend()
     plt.savefig("./relative_performance.png", dpi=300)
     plt.show()
-    
+
     # Sanity Check
     args = {"gamma": 0.99, "noise": 0.1, "epsilon": 0.01, "K": 3}
     mdp = GridWorldMDP(args["noise"], args["gamma"], args["K"], sanity=True)
     K = 3
-    
+
     # Step 0: Sanity check to make sure "do nothing" policy pi0 has value function 0
     Pi0 = np.zeros([mdp.numstates, 5])  # Pi0[state, :] is a probability vector
     Pi0[:, 4] = 1  # Deterministic action of doing nothing
     V0, n = mdp.policyEvaluation(args["epsilon"], Pi0)
     Pi0_drawing = np.zeros(mdp.numstates) + 4
     mdp.drawWorld(V0[:, 0], Pi0_drawing, f"C:/Users/hydep/robotics/policy_eval_0.png", savefig=True, p="Doing Nothing")
-    
+
     #Step 1: Sanity check to make sure the estimation of MORL is correct
     preference_name = ["green", "blue", "yellow"]
     for k in range(mdp.K):
