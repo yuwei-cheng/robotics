@@ -228,7 +228,8 @@ if __name__ == '__main__':
             A_hat[0, :] = V_mat[:, 0]
 
             for i in range(1, d, 1):
-                A_hat[i, :] = alpha_hat[i - 1] * (V_mat[:, 0] - V_mat[:, i])
+                # A_hat[i, :] = alpha_hat[i - 1] * (V_mat[:, 0] - V_mat[:, i])
+                A_hat[i, :] = alpha_hat[i - 1] * V_mat[:, 0] - V_mat[:, i]  # Spot an error
 
             print(A_hat)
             e1 = np.zeros([d, 1]);
